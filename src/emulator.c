@@ -30,10 +30,23 @@
 
 #include "emulator.h"
 
-static long int get_value_on_type(long int type, long int val, emulator_t *emu);
-static void addl(long int reg, long int value, emulator_t *emu);
-static void subl(long int reg, long int value, emulator_t *emu);
-static void imul(long int reg, long int value, emulator_t *emu);
+static void movl(long *reg, long value, long *errReg);
+
+static void addl(long *reg, long value, long *errReg);
+static void subl(long *reg, long value, long *errReg);
+static void imul(long *reg, long value, long *errReg);
+
+static void andl(long *reg, long value, long *errReg);
+static void orl(long *reg, long value, long *errReg);
+static void xorl(long *reg, long value, long *errReg);
+static void shrw(long *reg, long value, long *errReg);
+static void shlw(long *reg, long value, long *errReg);
+
+static void cmpl(long *reg, long value, long *x_special_reg, long *errReg);
+static void intl(long value, long *errReg, bool *isRunning);
+
+static long* get_reg_ptr(long reg, emulator_t *emu);
+static long get_value_on_type(long type, long val, emulator_t *emu);
 
 void emulator_init(FILE *rom, emulator_t *emu) {
 	// ROM
@@ -60,122 +73,178 @@ int emulator_start(emulator_t *emu) {
 	emu->base_reg = 0;
 	emu->x_special_reg = 0;
 
-	while (true) {
+	// Let the operating system create the heap!
+	bool isRunning = true;
+	while (isRunning) {
 		unsigned int opcode, reg, type, val;
 		fscanf(emu->rom, "%x %x %x %x", &opcode, &reg, &type, &val); // TODO: replace with sscanf() later
 
-		// Let the operating system create the heap!
+		long *regPtr = get_reg_ptr(reg, emu);
+		long value = get_value_on_type(type, val, emu);
+		long *errReg = &emu->err_reg;
+
 		switch (opcode) {
+		case MOVL_INSTR:
+			movl(regPtr, value, errReg);
+			break;
 		case ADDL_INSTR:
-			addl(reg, get_value_on_type(type, val, emu), emu);
+			addl(regPtr, value, errReg);
 			break;
 		case SUBL_INSTR:
-			subl(reg, get_value_on_type(type, val, emu), emu);
+			subl(regPtr, value, errReg);
 			break;
 		case IMUL_INSTR:
-			imul(reg, get_value_on_type(type, val, emu), emu);
+			imul(regPtr, value, errReg);
+			break;
+		case ANDL_INSTR:
+			andl(regPtr, value, errReg);
+			break;
+		case ORL_INSTR:
+			orl(regPtr, value, errReg);
+			break;
+		case XORL_INSTR:
+			xorl(regPtr, value, errReg);
+			break;
+		case SHRW_INSTR:
+			shrw(regPtr, value, errReg);
+			break;
+		case SHLW_INSTR:
+			shlw(regPtr, value, errReg);
 			break;
 		case CMPL_INSTR:
+			cmpl(regPtr, value, &emu->x_special_reg, errReg);
 			break;
-		case INT_INSTR:
+		case INTL_INSTR:
+			intl(value, errReg, &isRunning);
 			break;
 		default:
-			emu->err_reg = -1;
+			emu->err_reg = -999; // A very bad error code!
 			break;
 		}
 		// Debug
 		printf("Instruction Line: %d %d %d %d\n", opcode, reg, type, val);
-		printf("Registers: %d %d %d %d\n", emu->a_reg, emu->b_reg, emu->c_reg, emu->d_reg);
-
-		break; // TODO: remove this
+		printf("--------------\n");
+		printf("General Purpose Registers: %ld %ld %ld %ld\n", emu->a_reg, emu->b_reg,
+				emu->c_reg, emu->d_reg);
+		printf("Other Registers: %ld %ld %ld\n", emu->err_reg, emu->stack_reg, emu->base_reg);
+		printf("Special Registers: %ld\n", emu->x_special_reg);
+		printf("--------------\n");
 	}
 	return 0;
 }
 
-static void addl(long int reg, long int value, emulator_t *emu) {
-	switch (reg) {
-	case A_REG_HEX:
-		emu->a_reg += value;
-		break;
-	case B_REG_HEX:
-		emu->b_reg += value;
-		break;
-	case C_REG_HEX:
-		emu->c_reg += value;
-		break;
-	case D_REG_HEX:
-		emu->d_reg += value;
-		break;
-	case ERR_REG_HEX:
-		emu->err_reg += value;
-		break;
-	case STACK_PTR_REG_HEX:
-		emu->stack_reg += value;
-		break;
-	case BASE_PTR_REG_HEX:
-		emu->base_reg += value;
+static void movl(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -MOVL_INSTR;
+		return;
+	}
+	*reg = value;
+}
+
+static void addl(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -ADDL_INSTR;
+		return;
+	}
+	*reg += value;
+}
+
+static void subl(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -SUBL_INSTR;
+		return;
+	}
+	*reg -= value;
+}
+
+static void imul(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -IMUL_INSTR;
+		return;
+	}
+	*reg *= value;
+}
+
+static void andl(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -ANDL_INSTR;
+		return;
+	}
+	*reg = *reg & value;
+}
+
+static void orl(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -ORL_INSTR;
+		return;
+	}
+	*reg = *reg | value;
+}
+
+static void xorl(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -XORL_INSTR;
+		return;
+	}
+	*reg = *reg ^ value;
+}
+
+static void shrw(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -SHRW_INSTR;
+		return;
+	}
+	*reg = *reg >> value;
+}
+
+static void shlw(long *reg, long value, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -SHLW_INSTR;
+		return;
+	}
+	*reg = *reg << value;
+}
+
+static void cmpl(long *reg, long value, long *x_special_reg, long *errReg) {
+	if (*reg == -1) {
+		*errReg = -CMPL_INSTR;
+		return;
+	}
+	movl(x_special_reg, *reg, errReg);
+	subl(x_special_reg, value, errReg);
+}
+
+// Interrupt
+static void intl(long value, long *errReg, bool *isRunning) {
+	switch (value) {
+	case INT_SYS_EXIT_CODE:
+		*isRunning = false;
 		break;
 	default:
-		emu->err_reg = -2;
+		*errReg = -6;
 		break;
 	}
 }
 
-static void subl(long int reg, long int value, emulator_t *emu) {
+static long* get_reg_ptr(long reg, emulator_t *emu) {
 	switch (reg) {
 	case A_REG_HEX:
-		emu->a_reg -= value;
-		break;
+		return &emu->a_reg;
 	case B_REG_HEX:
-		emu->b_reg -= value;
-		break;
+		return &emu->b_reg;
 	case C_REG_HEX:
-		emu->c_reg -= value;
-		break;
+		return &emu->c_reg;
 	case D_REG_HEX:
-		emu->d_reg -= value;
-		break;
+		return &emu->d_reg;
 	case ERR_REG_HEX:
-		emu->err_reg -= value;
-		break;
+		return &emu->err_reg;
 	case STACK_PTR_REG_HEX:
-		emu->stack_reg -= value;
-		break;
+		return &emu->stack_reg;
 	case BASE_PTR_REG_HEX:
-		emu->base_reg -= value;
-		break;
+		return &emu->stack_reg;
 	default:
-		emu->err_reg = -3;
-		break;
-	}
-}
-
-static void imul(long int reg, long int value, emulator_t *emu) {
-	switch (reg) {
-	case A_REG_HEX:
-		emu->a_reg *= value;
-		break;
-	case B_REG_HEX:
-		emu->b_reg *= value;
-		break;
-	case C_REG_HEX:
-		emu->c_reg *= value;
-		break;
-	case D_REG_HEX:
-		emu->d_reg *= value;
-		break;
-	case ERR_REG_HEX:
-		emu->err_reg *= value;
-		break;
-	case STACK_PTR_REG_HEX:
-		emu->stack_reg *= value;
-		break;
-	case BASE_PTR_REG_HEX:
-		emu->base_reg *= value;
-		break;
-	default:
-		emu->err_reg = -4;
-		break;
+		emu->err_reg = -100;
+		return &emu->err_reg;
 	}
 }
 
@@ -183,7 +252,7 @@ static void imul(long int reg, long int value, emulator_t *emu) {
  * If type is POINTER_TYPE then
  * get the register that is in val and do stack[val] to get the value of it
  */
-static long int get_value_on_type(long int type, long int val, emulator_t *emu) {
+static long get_value_on_type(long type, long val, emulator_t *emu) {
 	switch (type) {
 	case INTEGER_TYPE:
 		return val;
@@ -216,6 +285,7 @@ static long int get_value_on_type(long int type, long int val, emulator_t *emu) 
 	case BASE_REG_POINTER_TYPE:
 		return emu->stack[emu->base_reg] * val;
 	default:
-		return -1;
+		emu->err_reg = -1;
+		return emu->err_reg;
 	}
 }

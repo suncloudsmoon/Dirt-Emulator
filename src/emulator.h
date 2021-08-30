@@ -27,17 +27,15 @@
 #ifndef EMULATOR_H_
 #define EMULATOR_H_
 
-#include <math.h>
-
 #define STACKSIZE 65535
 
 typedef struct {
 	// CPU
-	unsigned int a_reg, b_reg, c_reg, d_reg, err_reg, stack_reg, base_reg; // general purpose registers
-	unsigned int x_special_reg; // x is for cmpl result storage
+	long a_reg, b_reg, c_reg, d_reg, err_reg, stack_reg, base_reg; // general purpose registers
+	long x_special_reg; // x is for cmpl result storage
 
 	// RAM
-	long int stack[STACKSIZE];
+	long stack[STACKSIZE];
 	char **program; // Program loaded to memory
 
 	// ROM
@@ -46,13 +44,25 @@ typedef struct {
 
 // NOTE: INT = Interrupt
 typedef enum {
-	ADDL_INSTR = 0x01,
-	SUBL_INSTR = 0x02,
-	IMUL_INSTR = 0x03,
+	MOVL_INSTR = 0x01,
 
-	CMPL_INSTR = 0x04,
-	INT_INSTR = 0x05
+	ADDL_INSTR = 0x02,
+	SUBL_INSTR = 0x03,
+	IMUL_INSTR = 0x04,
+
+	ANDL_INSTR = 0x05,
+	ORL_INSTR = 0x06,
+	XORL_INSTR = 0x07,
+	SHRW_INSTR = 0x08,
+	SHLW_INSTR = 0x09,
+
+	CMPL_INSTR = 0xA,
+	INTL_INSTR = 0xB
 } InstructionSet;
+
+typedef enum {
+	INT_SYS_EXIT_CODE = 0x01
+} InterruptCodes;
 
 typedef enum {
 	A_REG_HEX = 0x01,
