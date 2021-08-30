@@ -31,19 +31,20 @@
 #include "emulator.h"
 
 static long int get_value_on_type(long int type, long int val, emulator_t *emu);
+static void addl(long int reg, long int value, emulator_t *emu);
+static void subl(long int reg, long int value, emulator_t *emu);
+static void imul(long int reg, long int value, emulator_t *emu);
 
-emulator_t* emulator_init(size_t ram_size, FILE *rom) {
-	emulator_t *emu = malloc(sizeof(emulator_t));
-
+void emulator_init(FILE *rom, emulator_t *emu) {
 	// ROM
 	emu->rom = rom;
-	return emu;
 }
 
 void emulator_free(emulator_t *emu) {
 	free(emu);
 }
 
+// TODO: make a error code documentation / table
 // Format: [opcode] [register] [type (indicates if it is a register, etc.)] [value (pure numbers here)]
 // So if you find a registry, say A_REG_TYPE in type, then it will multiply the A_REG
 // BASE_REG = ba in assembly
@@ -53,6 +54,8 @@ int emulator_start(emulator_t *emu) {
 	emu->b_reg = 0;
 	emu->c_reg = 0;
 	emu->d_reg = 0;
+
+	emu->err_reg = 0;
 	emu->stack_reg = 0;
 	emu->base_reg = 0;
 	emu->x_special_reg = 0;
@@ -64,27 +67,122 @@ int emulator_start(emulator_t *emu) {
 		// Let the operating system create the heap!
 		switch (opcode) {
 		case ADDL_INSTR:
-			// If type is POINTER_TYPE then
-			// get the register that is in val and do stack[val] to get the value of it
+			addl(reg, get_value_on_type(type, val, emu), emu);
 			break;
 		case SUBL_INSTR:
+			subl(reg, get_value_on_type(type, val, emu), emu);
 			break;
 		case IMUL_INSTR:
+			imul(reg, get_value_on_type(type, val, emu), emu);
 			break;
 		case CMPL_INSTR:
 			break;
 		case INT_INSTR:
 			break;
 		default:
-			return -1;
+			emu->err_reg = -1;
+			break;
 		}
+		// Debug
+		printf("Instruction Line: %d %d %d %d\n", opcode, reg, type, val);
+		printf("Registers: %d %d %d %d\n", emu->a_reg, emu->b_reg, emu->c_reg, emu->d_reg);
 
-		printf("Debug: %d %d %d %d", opcode, reg, type, val);
-		break;
+		break; // TODO: remove this
 	}
 	return 0;
 }
 
+static void addl(long int reg, long int value, emulator_t *emu) {
+	switch (reg) {
+	case A_REG_HEX:
+		emu->a_reg += value;
+		break;
+	case B_REG_HEX:
+		emu->b_reg += value;
+		break;
+	case C_REG_HEX:
+		emu->c_reg += value;
+		break;
+	case D_REG_HEX:
+		emu->d_reg += value;
+		break;
+	case ERR_REG_HEX:
+		emu->err_reg += value;
+		break;
+	case STACK_PTR_REG_HEX:
+		emu->stack_reg += value;
+		break;
+	case BASE_PTR_REG_HEX:
+		emu->base_reg += value;
+		break;
+	default:
+		emu->err_reg = -2;
+		break;
+	}
+}
+
+static void subl(long int reg, long int value, emulator_t *emu) {
+	switch (reg) {
+	case A_REG_HEX:
+		emu->a_reg -= value;
+		break;
+	case B_REG_HEX:
+		emu->b_reg -= value;
+		break;
+	case C_REG_HEX:
+		emu->c_reg -= value;
+		break;
+	case D_REG_HEX:
+		emu->d_reg -= value;
+		break;
+	case ERR_REG_HEX:
+		emu->err_reg -= value;
+		break;
+	case STACK_PTR_REG_HEX:
+		emu->stack_reg -= value;
+		break;
+	case BASE_PTR_REG_HEX:
+		emu->base_reg -= value;
+		break;
+	default:
+		emu->err_reg = -3;
+		break;
+	}
+}
+
+static void imul(long int reg, long int value, emulator_t *emu) {
+	switch (reg) {
+	case A_REG_HEX:
+		emu->a_reg *= value;
+		break;
+	case B_REG_HEX:
+		emu->b_reg *= value;
+		break;
+	case C_REG_HEX:
+		emu->c_reg *= value;
+		break;
+	case D_REG_HEX:
+		emu->d_reg *= value;
+		break;
+	case ERR_REG_HEX:
+		emu->err_reg *= value;
+		break;
+	case STACK_PTR_REG_HEX:
+		emu->stack_reg *= value;
+		break;
+	case BASE_PTR_REG_HEX:
+		emu->base_reg *= value;
+		break;
+	default:
+		emu->err_reg = -4;
+		break;
+	}
+}
+
+/*
+ * If type is POINTER_TYPE then
+ * get the register that is in val and do stack[val] to get the value of it
+ */
 static long int get_value_on_type(long int type, long int val, emulator_t *emu) {
 	switch (type) {
 	case INTEGER_TYPE:
@@ -97,18 +195,26 @@ static long int get_value_on_type(long int type, long int val, emulator_t *emu) 
 		return emu->c_reg * val;
 	case D_REG_TYPE:
 		return emu->d_reg * val;
+	case ERR_REG_TYPE:
+		return emu->err_reg * val;
+	case STACK_REG_TYPE:
+		return emu->stack_reg * val;
+	case BASE_REG_TYPE:
+		return emu->base_reg * val;
 	case A_REG_POINTER_TYPE:
-		return *(emu->a_reg) * val;
+		return *(emu->stack + emu->a_reg) * val;
 	case B_REG_POINTER_TYPE:
-		return *(emu->b_reg) * val;
+		return emu->stack[emu->b_reg] * val;
 	case C_REG_POINTER_TYPE:
-		return *(emu->c_reg) * val;
+		return emu->stack[emu->c_reg] * val;
 	case D_REG_POINTER_TYPE:
-		return *(emu->d_reg) * val;
-	case STACK_POINTER_TYPE:
-		return *(emu->stack_reg) * val;
-	case BASE_POINTER_TYPE:
-		return *(emu->base_reg) * val;
+		return emu->stack[emu->d_reg] * val;
+	case ERR_REG_POINTER_TYPE:
+		return emu->stack[emu->err_reg] * val;
+	case STACK_REG_POINTER_TYPE:
+		return emu->stack[emu->stack_reg] * val;
+	case BASE_REG_POINTER_TYPE:
+		return emu->stack[emu->base_reg] * val;
 	default:
 		return -1;
 	}

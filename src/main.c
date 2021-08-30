@@ -33,11 +33,10 @@ int main() {
 	FILE *rom;
 	rom = fopen("src/everything.hex", "r");
 
-	emulator_t *emu;
-	emu = emulator_init(500, rom);
+	emulator_t emu;
 
-	emulator_start(emu);
+	emulator_init(rom, &emu);
+	emulator_start(&emu);
 
-	emulator_free(emu);
 	return 0;
 }
