@@ -35,12 +35,18 @@ typedef struct {
 	long x_special_reg; // x is for cmpl result storage
 
 	// RAM
-	long stack[STACKSIZE];
-	char **program; // Program loaded to memory
+	long stack[STACKSIZE]; // programs are stored here too!
+	long specialMem[STACKSIZE / 2]; // for the CPU
+	long specialMemCounter; // push pop memory
 
 	// ROM
 	FILE *rom; // like the text hard drive with the hex stuff
 } emulator_t;
+
+typedef enum {
+	A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
+	ERR_REG_HEX = 0x05, STACK_PTR_REG_HEX = 0x06, BASE_PTR_REG_HEX = 0x07
+} GeneralPurposeRegisters;
 
 // NOTE: INT = Interrupt
 typedef enum {
@@ -57,23 +63,14 @@ typedef enum {
 	SHLW_INSTR = 0x09,
 
 	CMPL_INSTR = 0xA,
-	INTL_INSTR = 0xB
+	INTL_INSTR = 0xB,
+	PUSHL_INSTR = 0xC,
+	POPL_INSTR = 0xD
 } InstructionSet;
 
 typedef enum {
 	INT_SYS_EXIT_CODE = 0x01
 } InterruptCodes;
-
-typedef enum {
-	A_REG_HEX = 0x01,
-	B_REG_HEX = 0x02,
-	C_REG_HEX = 0x03,
-	D_REG_HEX = 0x04,
-
-	ERR_REG_HEX = 0x05,
-	STACK_PTR_REG_HEX = 0x06,
-	BASE_PTR_REG_HEX = 0x07
-} GeneralPurposeRegisters;
 
 typedef enum {
 	INTEGER_TYPE = 0x01,
