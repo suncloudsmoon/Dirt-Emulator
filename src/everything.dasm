@@ -1,0 +1,5 @@
+addl a int 5
+imul a int 5
+subl b int 10
+// a is a dummy placeholder
+intl a int 2

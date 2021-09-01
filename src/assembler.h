@@ -6,7 +6,10 @@
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so.
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
@@ -18,36 +21,15 @@
  */
 
 /*
- * main.c
+ * assembler.h
  *
- *  Created on: Aug 29, 2021
+ *  Created on: Aug 31, 2021
  *      Author: suncloudsmoon
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#ifndef ASSEMBLER_H_
+#define ASSEMBLER_H_
 
-#include "emulator.h"
-#include "assembler.h"
+int assemble(FILE *input, FILE *output);
 
-int main(int argc, char **argv) {
-	// Start the assembler
-	FILE *input, *output;
-	input = fopen("src/everything.dasm", "r");
-	output = fopen("src/everything.hex", "w");
-	assemble(input, output);
-
-	fclose(input);
-	fclose(output);
-
-	// Start the emulator
-	FILE *rom;
-	rom = fopen("src/everything.hex", "r");
-
-	emulator_t emu;
-
-	emulator_init(rom, &emu);
-	emulator_start(&emu);
-
-	return 0;
-}
+#endif /* ASSEMBLER_H_ */

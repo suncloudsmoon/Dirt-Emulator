@@ -43,16 +43,22 @@ static void shrw(long *reg, long value, long *errReg);
 static void shlw(long *reg, long value, long *errReg);
 
 static void cmpl(long *reg, long value, long *x_special_reg, long *errReg);
-static void intl(long value, long *errReg, bool *isRunning);
+static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu);
 
-static void pushl(long value, long *errReg, long *specialMemArr, long *specialMemCounter);
-static void popl(long *regPtr, long *errReg, long *specialMemArr, long *specialMemCounter);
+static void pushl(long value, long *errReg, long *specialMemArr,
+		long *specialMemCounter);
+static void popl(long *regPtr, long *errReg, long *specialMemArr,
+		long *specialMemCounter);
 
 static long* get_reg_ptr(long reg, emulator_t *emu);
 static long get_value_on_type(long type, long val, emulator_t *emu);
 
+// TODO: make a error code documentation / table
+// Format: [opcode] [register] [type (indicates if it is a register, etc.)] [value (pure numbers here)]
+// So if you find a registry, say A_REG_TYPE in type, then it will multiply the A_REG * value
+// BASE_REG = ba in assembly
+
 void emulator_init(FILE *rom, emulator_t *emu) {
-	// ROM
 	emu->specialMemCounter = -1;
 	emu->rom = rom;
 }
@@ -61,10 +67,6 @@ void emulator_free(emulator_t *emu) {
 	free(emu);
 }
 
-// TODO: make a error code documentation / table
-// Format: [opcode] [register] [type (indicates if it is a register, etc.)] [value (pure numbers here)]
-// So if you find a registry, say A_REG_TYPE in type, then it will multiply the A_REG
-// BASE_REG = ba in assembly
 int emulator_start(emulator_t *emu) {
 	// CPU registers set to zero
 	emu->a_reg = 0;
@@ -77,7 +79,6 @@ int emulator_start(emulator_t *emu) {
 	emu->base_reg = 0;
 	emu->x_special_reg = 0;
 
-	// Let the operating system create the heap!
 	bool isRunning = true;
 	while (isRunning) {
 		unsigned int opcode, reg, type, val;
@@ -119,7 +120,7 @@ int emulator_start(emulator_t *emu) {
 			cmpl(regPtr, value, &emu->x_special_reg, errReg);
 			break;
 		case INTL_INSTR:
-			intl(value, errReg, &isRunning);
+			intl(value, errReg, &isRunning, emu);
 			break;
 		case PUSHL_INSTR:
 			pushl(value, errReg, &emu->specialMem[0], &emu->specialMemCounter);
@@ -128,15 +129,16 @@ int emulator_start(emulator_t *emu) {
 			popl(regPtr, errReg, &emu->specialMem[0], &emu->specialMemCounter);
 			break;
 		default:
-			emu->err_reg = -999; // A very bad error code!
+			emu->err_reg = INSTR_NOT_FOUND_ERR; // A very bad error code!
 			break;
 		}
-		// Debug
+		// A nice view of what is going on behind the scenes
 		printf("Instruction Line: %d %d %d %d\n", opcode, reg, type, val);
 		printf("--------------\n");
 		printf("A, B, C, D: %ld %ld %ld %ld\n", emu->a_reg, emu->b_reg,
 				emu->c_reg, emu->d_reg);
-		printf("Error, Stack, Base: %ld %ld %ld\n", emu->err_reg, emu->stack_reg, emu->base_reg);
+		printf("Error, Stack, Base: %ld %ld %ld\n", emu->err_reg,
+				emu->stack_reg, emu->base_reg);
 		printf("X Special Reg: %ld\n", emu->x_special_reg);
 
 		printf("Memory: ");
@@ -237,18 +239,25 @@ static void cmpl(long *reg, long value, long *x_special_reg, long *errReg) {
 }
 
 // Interrupt
-static void intl(long value, long *errReg, bool *isRunning) {
+static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu) {
 	switch (value) {
+	case INT_STDOUT_CODE:
+		// a_reg is the pointer to the location in stack, b_reg is the string length
+		for (int i = 0; i < emu->b_reg; i++) {
+			fprintf(stdout, "%c", emu->stack[emu->a_reg + i]);
+		}
+		break;
 	case INT_SYS_EXIT_CODE:
 		*isRunning = false;
 		break;
 	default:
-		*errReg = -6;
+		*errReg = INTL_INSTR;
 		break;
 	}
 }
 
-static void pushl(long value, long *errReg, long *specialMemArr, long *specialMemCounter) {
+static void pushl(long value, long *errReg, long *specialMemArr,
+		long *specialMemCounter) {
 	if (*specialMemCounter > STACKSIZE / 2) {
 		*errReg = PUSHL_INSTR;
 		return;
@@ -257,7 +266,8 @@ static void pushl(long value, long *errReg, long *specialMemArr, long *specialMe
 	*(specialMemArr + *specialMemCounter) = value;
 }
 
-static void popl(long *regPtr, long *errReg, long *specialMemArr, long *specialMemCounter) {
+static void popl(long *regPtr, long *errReg, long *specialMemArr,
+		long *specialMemCounter) {
 	if (*specialMemCounter < 0) {
 		*errReg = POPL_INSTR;
 		return;
@@ -283,8 +293,8 @@ static long* get_reg_ptr(long reg, emulator_t *emu) {
 	case BASE_PTR_REG_HEX:
 		return &emu->stack[emu->base_reg];
 	default:
-		emu->err_reg = -100;
-		return &emu->err_reg;
+		emu->err_reg = REG_NOT_FOUND_ERR;
+		return &emu->err_reg; // TODO: replace this with an alternative method because this yields funny results
 	}
 }
 
@@ -325,7 +335,7 @@ static long get_value_on_type(long type, long val, emulator_t *emu) {
 	case BASE_REG_POINTER_TYPE:
 		return emu->stack[emu->base_reg] * val;
 	default:
-		emu->err_reg = -1;
+		emu->err_reg = TYPE_NOT_FOUND_ERR;
 		return emu->err_reg;
 	}
 }

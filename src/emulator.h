@@ -36,12 +36,18 @@ typedef struct {
 
 	// RAM
 	long stack[STACKSIZE]; // programs are stored here too!
-	long specialMem[STACKSIZE / 2]; // for the CPU
-	long specialMemCounter; // push pop memory
+	long specialMem[STACKSIZE / 2]; // push pop stuff goes here
+	long specialMemCounter;
 
 	// ROM
 	FILE *rom; // like the text hard drive with the hex stuff
 } emulator_t;
+
+typedef enum {
+	REG_NOT_FOUND_ERR = 100,
+	TYPE_NOT_FOUND_ERR = 200,
+	INSTR_NOT_FOUND_ERR = 999
+} TerribleErrorCodes;
 
 typedef enum {
 	A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
@@ -69,7 +75,8 @@ typedef enum {
 } InstructionSet;
 
 typedef enum {
-	INT_SYS_EXIT_CODE = 0x01
+	INT_STDOUT_CODE = 0x01,
+	INT_SYS_EXIT_CODE = 0x02
 } InterruptCodes;
 
 typedef enum {
