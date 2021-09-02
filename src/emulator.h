@@ -58,7 +58,7 @@ typedef enum {
 
 typedef enum {
 	NOP_REG_HEX = 0x0, A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
-	ERR_REG_HEX = 0x05, STACK_PTR_REG_HEX = 0x06, BASE_PTR_REG_HEX = 0x07
+	ERR_REG_HEX = 0x05, STACK_REG_HEX = 0x06, BASE_REG_HEX = 0x07
 } GeneralPurposeRegisters;
 
 // NOTE: INT = Interrupt
@@ -104,15 +104,7 @@ typedef enum {
 	D_REG_TYPE = 0x05,
 	ERR_REG_TYPE = 0x06,
 	STACK_REG_TYPE = 0x07,
-	BASE_REG_TYPE = 0x08,
-
-	A_REG_POINTER_TYPE = 0x09,
-	B_REG_POINTER_TYPE = 0xA,
-	C_REG_POINTER_TYPE = 0xB,
-	D_REG_POINTER_TYPE = 0xC,
-	ERR_REG_POINTER_TYPE = 0xD,
-	STACK_REG_POINTER_TYPE = 0xE,
-	BASE_REG_POINTER_TYPE = 0xF
+	BASE_REG_TYPE = 0x08
 } Types;
 
 int emulator_init(long ramSize, FILE *rom, emulator_t *emu);
@@ -121,6 +113,6 @@ void emulator_free(emulator_t *emu);
 /*
  * Returns a error code of -1 or less if it encounters a error or returns 0 if everything went fine
  */
-int emulator_start(emulator_t *emulator);
+int emulator_start(emulator_t *emu);
 
 #endif /* EMULATOR_H_ */

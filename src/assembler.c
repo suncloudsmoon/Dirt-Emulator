@@ -43,18 +43,15 @@ long opcodesHex[14] = { MOVL_INSTR, STMOVL_INSTR, ADDL_INSTR, SUBL_INSTR, IMUL_I
 
 // Registries
 // "eo" = error reg
-char regs[8][10] = { "nop", "a", "b", "c", "d", "eo", "st", "bs" };
+char regs[8][10] = { "nop", "a", "b", "c", "d", "err", "stack", "base" };
 long regsHex[8] = { NOP_REG_HEX, A_REG_HEX, B_REG_HEX, C_REG_HEX, D_REG_HEX, ERR_REG_HEX,
-		STACK_PTR_REG_HEX, BASE_PTR_REG_HEX };
+		STACK_REG_HEX, BASE_REG_HEX };
 
 // Types
-char types[16][10] = { "nop", "int", "areg", "breg", "creg", "dreg", "eoreg", "skreg",
-		"bsreg", "aptr", "bptr", "cptr", "dptr", "eptr", "skptr", "bsptr" };
-char typesHex[15] = { NOP_TYPE, INTEGER_TYPE, A_REG_TYPE, B_REG_TYPE, C_REG_TYPE,
-		D_REG_TYPE, ERR_REG_TYPE, STACK_REG_TYPE, BASE_REG_TYPE,
-		A_REG_POINTER_TYPE, B_REG_POINTER_TYPE, C_REG_POINTER_TYPE,
-		D_REG_POINTER_TYPE, ERR_REG_POINTER_TYPE, STACK_REG_POINTER_TYPE,
-		BASE_REG_POINTER_TYPE };
+char types[9][10] = { "nop", "int", "a", "b", "c", "d", "err", "stack",
+		"base" };
+long typesHex[9] = { NOP_TYPE, INTEGER_TYPE, A_REG_TYPE, B_REG_TYPE, C_REG_TYPE,
+		D_REG_TYPE, ERR_REG_TYPE, STACK_REG_TYPE, BASE_REG_TYPE};
 
 // NOTE: // Max 1,000 characters in one assembly line!
 int assemble(FILE *input, FILE *output) {
@@ -62,13 +59,13 @@ int assemble(FILE *input, FILE *output) {
 	char stream[1000];
 	char opcode[50], reg[50], type[50], val[50];
 	while (!feof(input)) {
-		char *successCheck = fgets(&stream, 1000, input);
-		if (stream[0] == '/' || successCheck == NULL || strlen(successCheck) < 5) {
+		char *memCheck = fgets(stream, 1000, input);
+		if (stream[0] == '/' || memCheck == NULL || strlen(memCheck) < 5) {
 			continue;
 		}
-		sscanf(&stream, "%s %s %s %s", &opcode, &reg, &type, &val);
-		if (fprintf(output, "0x%lx 0x%lx 0x%lx 0x%lx\n", opcodeToHex(&opcode),
-				regToHex(&reg), typeToHex(&type), valToHex(&val)) < 0) {
+		sscanf(stream, "%49s %49s %49s %49s", opcode, reg, type, val);
+		if (fprintf(output, "0x%lx 0x%lx 0x%lx 0x%lx\n", opcodeToHex(opcode),
+				regToHex(reg), typeToHex(type), valToHex(val)) < 0) {
 			returnCode = -1;
 		}
 	}
@@ -94,7 +91,7 @@ static unsigned long regToHex(char *reg) {
 }
 
 static unsigned long typeToHex(char *type) {
-	for (int i = 0; i < 16; i++) {
+	for (int i = 0; i < 9; i++) {
 		if (strcmp(type, types[i]) == 0) {
 			return typesHex[i];
 		}
