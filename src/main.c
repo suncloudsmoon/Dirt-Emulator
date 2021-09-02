@@ -26,6 +26,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #include "emulator.h"
@@ -56,6 +57,7 @@ int main(int argc, char **argv) {
 	}
 
 	emulator_t emu;
+	memset(&emu, 0, sizeof(emu));
 	emulator_init(EIGHT_BIT_MAX_MEM, rom, &emu);
 	emulator_start(&emu);
 	emulator_free(&emu);

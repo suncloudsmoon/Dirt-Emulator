@@ -27,6 +27,8 @@
 #ifndef EMULATOR_H_
 #define EMULATOR_H_
 
+#define SEGMENTATION_FAULT 5555
+
 typedef enum {
 	EIGHT_BIT_MAX_MEM = 256,
 	SIXTEEN_BIT_MAX_MEM = 65535
@@ -34,14 +36,14 @@ typedef enum {
 
 typedef struct {
 	// CPU
-	long a_reg, b_reg, c_reg, d_reg, err_reg, stack_reg, base_reg; // general purpose registers
+	long nop_reg, a_reg, b_reg, c_reg, d_reg, err_reg, stack_reg, base_reg; // general purpose registers
 	long x_special_reg; // x is for cmpl result storage
 
 	// RAM
 	long *stack; // programs are stored here too!
 	long *specialMem; // push pop stuff goes here
 	long specialMemCounter;
-	long ramSize;
+	long stackSize;
 
 	// Program
 	long instructionCounter;
@@ -49,12 +51,6 @@ typedef struct {
 	// ROM
 	FILE *rom; // like the text hard drive with the hex stuff
 } emulator_t;
-
-typedef enum {
-	REG_NOT_FOUND_ERR = 100,
-	TYPE_NOT_FOUND_ERR = 200,
-	INSTR_NOT_FOUND_ERR = 999
-} TerribleErrorCodes;
 
 typedef enum {
 	NOP_REG_HEX = 0x0, A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
@@ -107,7 +103,7 @@ typedef enum {
 	BASE_REG_TYPE = 0x08
 } Types;
 
-int emulator_init(long ramSize, FILE *rom, emulator_t *emu);
+int emulator_init(long stackSize, FILE *rom, emulator_t *emu);
 void emulator_free(emulator_t *emu);
 
 /*

@@ -1,3 +1,8 @@
-addl stack int 5 
-stmovl a stack 0
+movl a int 0
+movl b int 0
+
+addl b int 1
+subl a int 10
+cmpl b int 10
+jle nop int 3
 intl nop int 2

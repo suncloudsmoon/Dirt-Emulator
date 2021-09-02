@@ -38,8 +38,8 @@ static unsigned long typeToHex(char *type);
 static unsigned long valToHex(char *val);
 
 // Opcodes
-char opcodes[14][10] = { "movl", "stmovl", "addl", "subl", "imul", "andl", "orl", "xorl", "shrw", "shlw", "cmpl", "intl", "pushl", "popl" };
-long opcodesHex[14] = { MOVL_INSTR, STMOVL_INSTR, ADDL_INSTR, SUBL_INSTR, IMUL_INSTR, ANDL_INSTR, ORL_INSTR, XORL_INSTR, SHRW_INSTR, SHLW_INSTR, CMPL_INSTR, INTL_INSTR, PUSHL_INSTR, POPL_INSTR};
+char opcodes[20][10] = { "movl", "stmovl", "addl", "subl", "imul", "andl", "orl", "xorl", "shrw", "shlw", "cmpl", "je", "jl", "jg", "jle", "jge", "jmp", "intl", "pushl", "popl" };
+long opcodesHex[20] = { MOVL_INSTR, STMOVL_INSTR, ADDL_INSTR, SUBL_INSTR, IMUL_INSTR, ANDL_INSTR, ORL_INSTR, XORL_INSTR, SHRW_INSTR, SHLW_INSTR, CMPL_INSTR, JE_INSTR, JL_INSTR, JG_INSTR, JLE_INSTR, JGE_INSTR, JMP_INSTR, INTL_INSTR, PUSHL_INSTR, POPL_INSTR};
 
 // Registries
 // "eo" = error reg
@@ -73,7 +73,7 @@ int assemble(FILE *input, FILE *output) {
 }
 
 static unsigned long opcodeToHex(char *opcode) {
-	for (int i = 0; i < 14; i++) {
+	for (int i = 0; i < 20; i++) {
 		if (strcmp(opcode, opcodes[i]) == 0) {
 			return opcodesHex[i];
 		}
