@@ -1,5 +1,15 @@
-addl a int 5
-imul a int 5
-subl b int 10
-// a is a dummy placeholder
-intl a int 2
+movl a int 0
+movl b int 0
+movl c int 0
+movl d int 0
+
+addl st int 5
+
+stmovl a int 0
+stmovl a int 1
+stmovl a int 2
+stmovl a int 3
+stmovl a int 4
+stmovl a int 5
+
+intl nop int 2

@@ -26,15 +26,23 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include "emulator.h"
 #include "assembler.h"
 
 int main(int argc, char **argv) {
+	clock_t start, end;
+	start = clock();
+
 	// Start the assembler
 	FILE *input, *output;
 	input = fopen("src/everything.dasm", "r");
 	output = fopen("src/everything.hex", "w");
+	if (input == NULL || output == NULL) {
+		return -1;
+	}
+
 	assemble(input, output);
 
 	fclose(input);
@@ -43,11 +51,16 @@ int main(int argc, char **argv) {
 	// Start the emulator
 	FILE *rom;
 	rom = fopen("src/everything.hex", "r");
+	if (rom == NULL) {
+		return -1;
+	}
 
 	emulator_t emu;
-
-	emulator_init(rom, &emu);
+	emulator_init(EIGHT_BIT_MAX_MEM, rom, &emu);
 	emulator_start(&emu);
+	emulator_free(&emu);
 
+	end = clock();
+	printf("[main] Benchmarks: %f\n", (double) (end - start) / CLOCKS_PER_SEC);
 	return 0;
 }

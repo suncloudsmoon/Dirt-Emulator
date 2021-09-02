@@ -30,7 +30,10 @@
 
 #include "emulator.h"
 
+static int programToMem(emulator_t *emu);
+
 static void movl(long *reg, long value, long *errReg);
+static void stmovl(long *reg, long value, long *stack, long *errReg);
 
 static void addl(long *reg, long value, long *errReg);
 static void subl(long *reg, long value, long *errReg);
@@ -43,10 +46,10 @@ static void shrw(long *reg, long value, long *errReg);
 static void shlw(long *reg, long value, long *errReg);
 
 static void cmpl(long *reg, long value, long *x_special_reg, long *errReg);
-static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu);
 
-static void pushl(long value, long *errReg, long *specialMemArr,
-		long *specialMemCounter);
+static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu);
+static void pushl(long value, long *specialMemArr, long *specialMemCounter,
+		long ramSize, long *errReg);
 static void popl(long *regPtr, long *errReg, long *specialMemArr,
 		long *specialMemCounter);
 
@@ -58,31 +61,36 @@ static long get_value_on_type(long type, long val, emulator_t *emu);
 // So if you find a registry, say A_REG_TYPE in type, then it will multiply the A_REG * value
 // BASE_REG = ba in assembly
 
-void emulator_init(FILE *rom, emulator_t *emu) {
+int emulator_init(long ramSize, FILE *rom, emulator_t *emu) {
+	// RAM
+	emu->stack = malloc(ramSize * sizeof(long));
+	emu->specialMem = malloc(ramSize / 2 * sizeof(long));
+	if (emu->stack == NULL || emu->specialMem == NULL) {
+		return -1;
+	}
 	emu->specialMemCounter = -1;
+	emu->ramSize = ramSize;
 	emu->rom = rom;
+
+	return 0;
 }
 
 void emulator_free(emulator_t *emu) {
-	free(emu);
+	free(emu->stack);
+	free(emu->specialMem);
 }
 
 int emulator_start(emulator_t *emu) {
-	// CPU registers set to zero
-	emu->a_reg = 0;
-	emu->b_reg = 0;
-	emu->c_reg = 0;
-	emu->d_reg = 0;
-
-	emu->err_reg = 0;
-	emu->stack_reg = 0;
-	emu->base_reg = 0;
-	emu->x_special_reg = 0;
+	emu->instructionCounter = 0;
+	programToMem(emu);
 
 	bool isRunning = true;
 	while (isRunning) {
-		unsigned int opcode, reg, type, val;
-		fscanf(emu->rom, "%x %x %x %x", &opcode, &reg, &type, &val); // TODO: replace with sscanf() later
+		long opcode, reg, type, val;
+		opcode = emu->stack[emu->instructionCounter];
+		reg =  emu->stack[emu->instructionCounter + 1];
+		type = emu->stack[emu->instructionCounter + 2];
+		val = emu->stack[emu->instructionCounter + 3];
 
 		long *regPtr = get_reg_ptr(reg, emu);
 		long value = get_value_on_type(type, val, emu);
@@ -91,6 +99,9 @@ int emulator_start(emulator_t *emu) {
 		switch (opcode) {
 		case MOVL_INSTR:
 			movl(regPtr, value, errReg);
+			break;
+		case STMOVL_INSTR:
+			stmovl(regPtr, value, emu->stack, errReg);
 			break;
 		case ADDL_INSTR:
 			addl(regPtr, value, errReg);
@@ -123,7 +134,8 @@ int emulator_start(emulator_t *emu) {
 			intl(value, errReg, &isRunning, emu);
 			break;
 		case PUSHL_INSTR:
-			pushl(value, errReg, &emu->specialMem[0], &emu->specialMemCounter);
+			pushl(value, emu->specialMem, &emu->specialMemCounter, emu->ramSize,
+					errReg);
 			break;
 		case POPL_INSTR:
 			popl(regPtr, errReg, &emu->specialMem[0], &emu->specialMemCounter);
@@ -132,6 +144,8 @@ int emulator_start(emulator_t *emu) {
 			emu->err_reg = INSTR_NOT_FOUND_ERR; // A very bad error code!
 			break;
 		}
+		emu->instructionCounter++;
+
 		// A nice view of what is going on behind the scenes
 		printf("Instruction Line: %d %d %d %d\n", opcode, reg, type, val);
 		printf("--------------\n");
@@ -143,18 +157,46 @@ int emulator_start(emulator_t *emu) {
 
 		printf("Memory: ");
 		for (int i = 0; i <= emu->stack_reg; i++) {
-			printf("%ld", emu->stack[i]);
+			printf("%ld ", emu->stack[i]);
 		}
 		printf("\n");
 
 		printf("Special Memory: ");
 		for (int i = 0; i <= emu->specialMemCounter; i++) {
-			printf("%ld", emu->specialMem[i]);
+			printf("%ld ", emu->specialMem[i]);
 		}
 		printf("\n");
 		printf("--------------\n");
+		break;
 	}
 	return 0;
+}
+
+static int programToMem(emulator_t *emu) {
+	movl(&emu->stack_reg, 3, &emu->err_reg);
+	while (!feof(emu->rom)) {
+		char opcodeStr[50], regStr[50], typeStr[50], valStr[50];
+		fscanf(emu->rom, "%s %s %s %s", &opcodeStr, &regStr, &typeStr, &valStr);
+
+		long opcode, reg, type, val;
+		opcode = strtol(opcodeStr, NULL, 16);
+		reg = strtol(regStr, NULL, 16);
+		type = strtol(typeStr, NULL, 16);
+		val = strtol(valStr, NULL, 16);
+
+		movl(&emu->a_reg, opcode, &emu->err_reg);
+		movl(&emu->b_reg, reg, &emu->err_reg);
+		movl(&emu->c_reg, type, &emu->err_reg);
+		movl(&emu->d_reg, val, &emu->err_reg);
+
+		stmovl(&emu->a_reg, emu->stack_reg - 3, emu->stack, &emu->err_reg);
+		stmovl(&emu->b_reg, emu->stack_reg - 2, emu->stack, &emu->err_reg);
+		stmovl(&emu->c_reg, emu->stack_reg - 1, emu->stack, &emu->err_reg);
+		stmovl(&emu->d_reg, emu->stack_reg, emu->stack, &emu->err_reg);
+
+		addl(&emu->stack_reg, 3, &emu->err_reg);
+	}
+	return emu->err_reg;
 }
 
 static void movl(long *reg, long value, long *errReg) {
@@ -163,6 +205,14 @@ static void movl(long *reg, long value, long *errReg) {
 		return;
 	}
 	*reg = value;
+}
+
+static void stmovl(long *reg, long value, long *stack, long *errReg) {
+	if (*reg == -1) {
+		*errReg = MOVL_INSTR;
+		return;
+	}
+	*(stack + value) = *reg;
 }
 
 static void addl(long *reg, long value, long *errReg) {
@@ -238,13 +288,17 @@ static void cmpl(long *reg, long value, long *x_special_reg, long *errReg) {
 	subl(x_special_reg, value, errReg);
 }
 
+static void je(long *x_special_reg) {
+
+}
+
 // Interrupt
 static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu) {
 	switch (value) {
 	case INT_STDOUT_CODE:
 		// a_reg is the pointer to the location in stack, b_reg is the string length
 		for (int i = 0; i < emu->b_reg; i++) {
-			fprintf(stdout, "%c", emu->stack[emu->a_reg + i]);
+			fprintf(stdout, "%c", (char) emu->stack[emu->a_reg + i]);
 		}
 		break;
 	case INT_SYS_EXIT_CODE:
@@ -256,9 +310,9 @@ static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu) {
 	}
 }
 
-static void pushl(long value, long *errReg, long *specialMemArr,
-		long *specialMemCounter) {
-	if (*specialMemCounter > STACKSIZE / 2) {
+static void pushl(long value, long *specialMemArr, long *specialMemCounter,
+		long ramSize, long *errReg) {
+	if (*specialMemCounter > ramSize / 2) {
 		*errReg = PUSHL_INSTR;
 		return;
 	}
@@ -289,9 +343,9 @@ static long* get_reg_ptr(long reg, emulator_t *emu) {
 	case ERR_REG_HEX:
 		return &emu->err_reg;
 	case STACK_PTR_REG_HEX:
-		return &emu->stack[emu->stack_reg];
+		return &emu->stack_reg;
 	case BASE_PTR_REG_HEX:
-		return &emu->stack[emu->base_reg];
+		return &emu->base_reg;
 	default:
 		emu->err_reg = REG_NOT_FOUND_ERR;
 		return &emu->err_reg; // TODO: replace this with an alternative method because this yields funny results
@@ -307,33 +361,33 @@ static long get_value_on_type(long type, long val, emulator_t *emu) {
 	case INTEGER_TYPE:
 		return val;
 	case A_REG_TYPE:
-		return emu->a_reg * val;
+		return emu->a_reg + val;
 	case B_REG_TYPE:
-		return emu->b_reg * val;
+		return emu->b_reg + val;
 	case C_REG_TYPE:
-		return emu->c_reg * val;
+		return emu->c_reg + val;
 	case D_REG_TYPE:
-		return emu->d_reg * val;
+		return emu->d_reg + val;
 	case ERR_REG_TYPE:
-		return emu->err_reg * val;
+		return emu->err_reg + val;
 	case STACK_REG_TYPE:
-		return emu->stack_reg * val;
+		return emu->stack_reg + val;
 	case BASE_REG_TYPE:
-		return emu->base_reg * val;
+		return emu->base_reg + val;
 	case A_REG_POINTER_TYPE:
-		return emu->stack[emu->a_reg] * val;
+		return emu->stack[emu->a_reg] + val;
 	case B_REG_POINTER_TYPE:
-		return emu->stack[emu->b_reg] * val;
+		return emu->stack[emu->b_reg] + val;
 	case C_REG_POINTER_TYPE:
-		return emu->stack[emu->c_reg] * val;
+		return emu->stack[emu->c_reg] + val;
 	case D_REG_POINTER_TYPE:
-		return emu->stack[emu->d_reg] * val;
+		return emu->stack[emu->d_reg] + val;
 	case ERR_REG_POINTER_TYPE:
-		return emu->stack[emu->err_reg] * val;
+		return emu->stack[emu->err_reg] + val;
 	case STACK_REG_POINTER_TYPE:
-		return emu->stack[emu->stack_reg] * val;
+		return emu->stack[emu->stack_reg] + val;
 	case BASE_REG_POINTER_TYPE:
-		return emu->stack[emu->base_reg] * val;
+		return emu->stack[emu->base_reg] + val;
 	default:
 		emu->err_reg = TYPE_NOT_FOUND_ERR;
 		return emu->err_reg;

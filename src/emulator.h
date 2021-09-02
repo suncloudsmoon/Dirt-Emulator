@@ -27,7 +27,10 @@
 #ifndef EMULATOR_H_
 #define EMULATOR_H_
 
-#define STACKSIZE 65535
+typedef enum {
+	EIGHT_BIT_MAX_MEM = 256,
+	SIXTEEN_BIT_MAX_MEM = 65535
+} MemSizeConstants;
 
 typedef struct {
 	// CPU
@@ -35,9 +38,13 @@ typedef struct {
 	long x_special_reg; // x is for cmpl result storage
 
 	// RAM
-	long stack[STACKSIZE]; // programs are stored here too!
-	long specialMem[STACKSIZE / 2]; // push pop stuff goes here
+	long *stack; // programs are stored here too!
+	long *specialMem; // push pop stuff goes here
 	long specialMemCounter;
+	long ramSize;
+
+	// Program
+	long instructionCounter;
 
 	// ROM
 	FILE *rom; // like the text hard drive with the hex stuff
@@ -50,28 +57,36 @@ typedef enum {
 } TerribleErrorCodes;
 
 typedef enum {
-	A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
+	NOP_REG_HEX = 0x0, A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
 	ERR_REG_HEX = 0x05, STACK_PTR_REG_HEX = 0x06, BASE_PTR_REG_HEX = 0x07
 } GeneralPurposeRegisters;
 
 // NOTE: INT = Interrupt
 typedef enum {
 	MOVL_INSTR = 0x01,
+	STMOVL_INSTR = 0x02,
 
-	ADDL_INSTR = 0x02,
-	SUBL_INSTR = 0x03,
-	IMUL_INSTR = 0x04,
+	ADDL_INSTR = 0x03,
+	SUBL_INSTR = 0x04,
+	IMUL_INSTR = 0x05,
 
-	ANDL_INSTR = 0x05,
-	ORL_INSTR = 0x06,
-	XORL_INSTR = 0x07,
-	SHRW_INSTR = 0x08,
-	SHLW_INSTR = 0x09,
+	ANDL_INSTR = 0x06,
+	ORL_INSTR = 0x07,
+	XORL_INSTR = 0x08,
+	SHRW_INSTR = 0x09,
+	SHLW_INSTR = 0xA,
 
-	CMPL_INSTR = 0xA,
-	INTL_INSTR = 0xB,
-	PUSHL_INSTR = 0xC,
-	POPL_INSTR = 0xD
+	CMPL_INSTR = 0xB,
+	JE_INSTR = 0xC,
+	JL_INSTR = 0xD,
+	JG_INSTR = 0xE,
+	JLE_INSTR = 0xF,
+	JGE_INSTR = 0x10,
+	JMP_INSTR = 0x11,
+
+	INTL_INSTR = 0x12,
+	PUSHL_INSTR = 0x13,
+	POPL_INSTR = 0x14
 } InstructionSet;
 
 typedef enum {
@@ -80,6 +95,7 @@ typedef enum {
 } InterruptCodes;
 
 typedef enum {
+	NOP_TYPE = 0x0,
 	INTEGER_TYPE = 0x01,
 
 	A_REG_TYPE = 0x02,
@@ -99,7 +115,7 @@ typedef enum {
 	BASE_REG_POINTER_TYPE = 0xF
 } Types;
 
-void emulator_init(FILE *rom, emulator_t *emu);
+int emulator_init(long ramSize, FILE *rom, emulator_t *emu);
 void emulator_free(emulator_t *emu);
 
 /*

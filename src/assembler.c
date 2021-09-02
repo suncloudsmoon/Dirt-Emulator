@@ -38,30 +38,31 @@ static unsigned long typeToHex(char *type);
 static unsigned long valToHex(char *val);
 
 // Opcodes
-char opcodes[13][10] = { "movl", "addl", "subl", "imul", "andl", "orl", "xorl", "shrw", "shlw", "cmpl", "intl", "pushl", "popl" };
-long opcodesHex[13] = { MOVL_INSTR, ADDL_INSTR, SUBL_INSTR, IMUL_INSTR, ANDL_INSTR, ORL_INSTR, XORL_INSTR, SHRW_INSTR, SHLW_INSTR, CMPL_INSTR, INTL_INSTR, PUSHL_INSTR, POPL_INSTR};
+char opcodes[14][10] = { "movl", "stmovl", "addl", "subl", "imul", "andl", "orl", "xorl", "shrw", "shlw", "cmpl", "intl", "pushl", "popl" };
+long opcodesHex[14] = { MOVL_INSTR, STMOVL_INSTR, ADDL_INSTR, SUBL_INSTR, IMUL_INSTR, ANDL_INSTR, ORL_INSTR, XORL_INSTR, SHRW_INSTR, SHLW_INSTR, CMPL_INSTR, INTL_INSTR, PUSHL_INSTR, POPL_INSTR};
 
 // Registries
-char regs[7][10] = { "a", "b", "c", "d", "err", "stack", "base" };
-long regsHex[7] = { A_REG_HEX, B_REG_HEX, C_REG_HEX, D_REG_HEX, ERR_REG_HEX,
+// "eo" = error reg
+char regs[8][10] = { "nop", "a", "b", "c", "d", "eo", "st", "bs" };
+long regsHex[8] = { NOP_REG_HEX, A_REG_HEX, B_REG_HEX, C_REG_HEX, D_REG_HEX, ERR_REG_HEX,
 		STACK_PTR_REG_HEX, BASE_PTR_REG_HEX };
 
 // Types
-char types[15][10] = { "int", "areg", "breg", "creg", "dreg", "ereg", "skreg",
+char types[16][10] = { "nop", "int", "areg", "breg", "creg", "dreg", "eoreg", "skreg",
 		"bsreg", "aptr", "bptr", "cptr", "dptr", "eptr", "skptr", "bsptr" };
-char typesHex[15] = { INTEGER_TYPE, A_REG_TYPE, B_REG_TYPE, C_REG_TYPE,
+char typesHex[15] = { NOP_TYPE, INTEGER_TYPE, A_REG_TYPE, B_REG_TYPE, C_REG_TYPE,
 		D_REG_TYPE, ERR_REG_TYPE, STACK_REG_TYPE, BASE_REG_TYPE,
 		A_REG_POINTER_TYPE, B_REG_POINTER_TYPE, C_REG_POINTER_TYPE,
 		D_REG_POINTER_TYPE, ERR_REG_POINTER_TYPE, STACK_REG_POINTER_TYPE,
 		BASE_REG_POINTER_TYPE };
 
-// NOTE: // Max 500 characters in one assembly line!
+// NOTE: // Max 1,000 characters in one assembly line!
 int assemble(FILE *input, FILE *output) {
 	int returnCode = 0;
-	char stream[500];
+	char stream[1000];
 	char opcode[50], reg[50], type[50], val[50];
 	while (!feof(input)) {
-		char *successCheck = fgets(&stream, 500, input);
+		char *successCheck = fgets(&stream, 1000, input);
 		if (stream[0] == '/' || successCheck == NULL || strlen(successCheck) < 5) {
 			continue;
 		}
@@ -75,7 +76,7 @@ int assemble(FILE *input, FILE *output) {
 }
 
 static unsigned long opcodeToHex(char *opcode) {
-	for (int i = 0; i < 13; i++) {
+	for (int i = 0; i < 14; i++) {
 		if (strcmp(opcode, opcodes[i]) == 0) {
 			return opcodesHex[i];
 		}
@@ -84,7 +85,7 @@ static unsigned long opcodeToHex(char *opcode) {
 }
 
 static unsigned long regToHex(char *reg) {
-	for (int i = 0; i < 7; i++) {
+	for (int i = 0; i < 8; i++) {
 		if (strcmp(reg, regs[i]) == 0) {
 			return regsHex[i];
 		}
@@ -93,7 +94,7 @@ static unsigned long regToHex(char *reg) {
 }
 
 static unsigned long typeToHex(char *type) {
-	for (int i = 0; i < 15; i++) {
+	for (int i = 0; i < 16; i++) {
 		if (strcmp(type, types[i]) == 0) {
 			return typesHex[i];
 		}
@@ -102,5 +103,5 @@ static unsigned long typeToHex(char *type) {
 }
 
 static unsigned long valToHex(char *val) {
-	return strtol(val, NULL, 10);
+	return (unsigned long) strtol(val, NULL, 10);
 }
