@@ -28,10 +28,10 @@
 #define EMULATOR_H_
 
 #define SEGMENTATION_FAULT 5555
+#define HDD_BIT_OFFSET 10
 
 typedef enum {
-	EIGHT_BIT_MAX_MEM = 256,
-	SIXTEEN_BIT_MAX_MEM = 65535
+	EIGHT_BIT_MAX_MEM = 256, SIXTEEN_BIT_MAX_MEM = 65535
 } MemSizeConstants;
 
 typedef struct {
@@ -49,45 +49,52 @@ typedef struct {
 	long instructionCounter;
 
 	// ROM
-	FILE *rom; // like the text hard drive with the hex stuff
+	FILE *hdd; // like the text hard drive with the hex stuff
 } emulator_t;
 
 typedef enum {
-	NOP_REG_HEX = 0x0, A_REG_HEX = 0x01, B_REG_HEX = 0x02, C_REG_HEX = 0x03, D_REG_HEX = 0x04,
-	ERR_REG_HEX = 0x05, STACK_REG_HEX = 0x06, BASE_REG_HEX = 0x07
+	NOP_REG_HEX = 0x0,
+	A_REG_HEX = 0x01,
+	B_REG_HEX = 0x02,
+	C_REG_HEX = 0x03,
+	D_REG_HEX = 0x04,
+	ERR_REG_HEX = 0x05,
+	STACK_REG_HEX = 0x06,
+	BASE_REG_HEX = 0x07
 } GeneralPurposeRegisters;
 
 // NOTE: INT = Interrupt
 typedef enum {
+	NOP_INSTR = 0x0,
 	MOVL_INSTR = 0x01,
 	STMOVL_INSTR = 0x02,
 
 	ADDL_INSTR = 0x03,
 	SUBL_INSTR = 0x04,
 	IMUL_INSTR = 0x05,
+	IDIVL_INSTR = 0x06,
 
-	ANDL_INSTR = 0x06,
-	ORL_INSTR = 0x07,
-	XORL_INSTR = 0x08,
-	SHRW_INSTR = 0x09,
-	SHLW_INSTR = 0xA,
+	ANDL_INSTR = 0x07,
+	ORL_INSTR = 0x08,
+	XORL_INSTR = 0x09,
+	SHRW_INSTR = 0xA,
+	SHLW_INSTR = 0xB,
 
-	CMPL_INSTR = 0xB,
-	JE_INSTR = 0xC,
-	JL_INSTR = 0xD,
-	JG_INSTR = 0xE,
-	JLE_INSTR = 0xF,
-	JGE_INSTR = 0x10,
-	JMP_INSTR = 0x11,
+	CMPL_INSTR = 0xC,
+	JE_INSTR = 0xD,
+	JL_INSTR = 0xE,
+	JG_INSTR = 0xF,
+	JLE_INSTR = 0x10,
+	JGE_INSTR = 0x11,
+	JMP_INSTR = 0x12,
 
-	INTL_INSTR = 0x12,
-	PUSHL_INSTR = 0x13,
-	POPL_INSTR = 0x14
+	PUSHL_INSTR = 0x14,
+	POPL_INSTR = 0x15,
+	INTL_INSTR = 0x16
 } InstructionSet;
 
 typedef enum {
-	INT_STDOUT_CODE = 0x01,
-	INT_SYS_EXIT_CODE = 0x02
+	INT_STDOUT_CODE = 0x01, INT_SYS_EXIT_CODE = 0x02
 } InterruptCodes;
 
 typedef enum {
@@ -103,9 +110,11 @@ typedef enum {
 	BASE_REG_TYPE = 0x08
 } Types;
 
-int emulator_init(long stackSize, FILE *rom, emulator_t *emu);
+int emulator_init(long stackSize, FILE *hdd, emulator_t *emu);
 void emulator_free(emulator_t *emu);
 
+int emulator_create_hdd(long hddSize, FILE *hdd);
+int emulator_flash_pgrm_to_hdd(long location, FILE *pgrm, FILE *hdd);
 /*
  * Returns a error code of -1 or less if it encounters a error or returns 0 if everything went fine
  */

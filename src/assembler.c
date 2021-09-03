@@ -38,42 +38,53 @@ static unsigned long typeToHex(char *type);
 static unsigned long valToHex(char *val);
 
 // Opcodes
-char opcodes[20][10] = { "movl", "stmovl", "addl", "subl", "imul", "andl", "orl", "xorl", "shrw", "shlw", "cmpl", "je", "jl", "jg", "jle", "jge", "jmp", "intl", "pushl", "popl" };
-long opcodesHex[20] = { MOVL_INSTR, STMOVL_INSTR, ADDL_INSTR, SUBL_INSTR, IMUL_INSTR, ANDL_INSTR, ORL_INSTR, XORL_INSTR, SHRW_INSTR, SHLW_INSTR, CMPL_INSTR, JE_INSTR, JL_INSTR, JG_INSTR, JLE_INSTR, JGE_INSTR, JMP_INSTR, INTL_INSTR, PUSHL_INSTR, POPL_INSTR};
+char opcodes[22][10] = { "nop", "movl", "stmovl", "addl", "subl", "imul",
+		"idivl", "andl", "orl", "xorl", "shrw", "shlw", "cmpl", "je", "jl",
+		"jg", "jle", "jge", "jmp", "pushl", "popl", "intl" };
+long opcodesHex[22] = { NOP_INSTR, MOVL_INSTR, STMOVL_INSTR, ADDL_INSTR,
+		SUBL_INSTR, IMUL_INSTR, IDIVL_INSTR, ANDL_INSTR, ORL_INSTR, XORL_INSTR,
+		SHRW_INSTR, SHLW_INSTR, CMPL_INSTR, JE_INSTR, JL_INSTR, JG_INSTR,
+		JLE_INSTR, JGE_INSTR, JMP_INSTR, PUSHL_INSTR, POPL_INSTR, INTL_INSTR };
 
 // Registries
 // "eo" = error reg
-char regs[8][10] = { "nop", "a", "b", "c", "d", "err", "stack", "base" };
-long regsHex[8] = { NOP_REG_HEX, A_REG_HEX, B_REG_HEX, C_REG_HEX, D_REG_HEX, ERR_REG_HEX,
-		STACK_REG_HEX, BASE_REG_HEX };
+const char regs[8][10] = { "nop", "a", "b", "c", "d", "err", "stack", "base" };
+const long regsHex[8] = { NOP_REG_HEX, A_REG_HEX, B_REG_HEX, C_REG_HEX,
+		D_REG_HEX, ERR_REG_HEX, STACK_REG_HEX, BASE_REG_HEX };
 
 // Types
-char types[9][10] = { "nop", "int", "a", "b", "c", "d", "err", "stack",
+const char types[9][10] = { "nop", "int", "a", "b", "c", "d", "err", "stack",
 		"base" };
-long typesHex[9] = { NOP_TYPE, INTEGER_TYPE, A_REG_TYPE, B_REG_TYPE, C_REG_TYPE,
-		D_REG_TYPE, ERR_REG_TYPE, STACK_REG_TYPE, BASE_REG_TYPE};
+const long typesHex[9] = { NOP_TYPE, INTEGER_TYPE, A_REG_TYPE, B_REG_TYPE,
+		C_REG_TYPE, D_REG_TYPE, ERR_REG_TYPE, STACK_REG_TYPE, BASE_REG_TYPE };
 
-// NOTE: // Max 1,000 characters in one assembly line!
-int assemble(FILE *input, FILE *output) {
-	int returnCode = 0;
-	char stream[1000];
-	char opcode[50], reg[50], type[50], val[50];
+// NOTE: Max 1,000 characters in one assembly line!
+int assemble(FILE *input, FILE *hdd) {
+	char preprocessor[50];
+	long numLines;
+	fscanf(input, "%49s %ld", preprocessor, &numLines);
+	fprintf(hdd, "%08x %08lx %08x %08x ", 0x1, numLines, 0x0, 0x0);
+
 	while (!feof(input)) {
+		char stream[1000];
+		char opcode[50], reg[50], type[50], val[50];
 		char *memCheck = fgets(stream, 1000, input);
-		if (stream[0] == '/' || memCheck == NULL || strlen(memCheck) < 5) {
+		if (memCheck == NULL || stream[0] == '/' || strlen(stream) < 5) {
 			continue;
 		}
-		sscanf(stream, "%49s %49s %49s %49s", opcode, reg, type, val);
-		if (fprintf(output, "0x%lx 0x%lx 0x%lx 0x%lx\n", opcodeToHex(opcode),
+		if (sscanf(stream, "%49s %49s %49s %49s", opcode, reg, type, val) == EOF) {
+			return -1;
+		}
+		if (fprintf(hdd, "%08lx %08lx %08lx %08lx ", opcodeToHex(opcode),
 				regToHex(reg), typeToHex(type), valToHex(val)) < 0) {
-			returnCode = -1;
+			return -1;
 		}
 	}
-	return returnCode;
+	return 0;
 }
 
 static unsigned long opcodeToHex(char *opcode) {
-	for (int i = 0; i < 20; i++) {
+	for (int i = 0; i < 22; i++) {
 		if (strcmp(opcode, opcodes[i]) == 0) {
 			return opcodesHex[i];
 		}

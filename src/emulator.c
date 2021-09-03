@@ -33,11 +33,13 @@
 static int programToMem(emulator_t *emu);
 
 static void movl(long *reg, long value);
-static void stmovl(long *reg, long value, long *stack, long stackSize, long *errReg);
+static void stmovl(long *reg, long value, long *stack, long stackSize,
+		long *errReg);
 
 static void addl(long *reg, long value);
 static void subl(long *reg, long value);
 static void imul(long *reg, long value);
+static void idivl(long *reg, long value);
 
 static void andl(long *reg, long value);
 static void orl(long *reg, long value);
@@ -67,7 +69,7 @@ static long get_value_on_type(long type, long val, emulator_t *emu);
 // So if you find a registry, say A_REG_TYPE in type, then it will multiply the A_REG * value
 // BASE_REG = ba in assembly
 
-int emulator_init(long stackSize, FILE *rom, emulator_t *emu) {
+int emulator_init(long stackSize, FILE *hdd, emulator_t *emu) {
 	// RAM
 	emu->stack = malloc(stackSize * sizeof(long));
 	emu->specialMem = malloc(stackSize / 2 * sizeof(long));
@@ -76,7 +78,7 @@ int emulator_init(long stackSize, FILE *rom, emulator_t *emu) {
 	}
 	emu->specialMemCounter = -1;
 	emu->stackSize = stackSize;
-	emu->rom = rom;
+	emu->hdd = hdd;
 
 	return 0;
 }
@@ -84,6 +86,33 @@ int emulator_init(long stackSize, FILE *rom, emulator_t *emu) {
 void emulator_free(emulator_t *emu) {
 	free(emu->stack);
 	free(emu->specialMem);
+}
+
+int emulator_create_hdd(long hddSize, FILE *hdd) {
+	// 8 zeros and a space (long int is 8 bit data type)
+	for (long i = 0; i < hddSize; i++) {
+		if (fprintf(hdd, "%08x ", 0x0) < 0) {
+			return -1;
+		}
+	}
+	return 0;
+}
+
+// Like for loading operating systems, etc.
+int emulator_flash_pgrm_to_hdd(long location, FILE *pgrm, FILE *hdd) {
+	// hdd with r+
+	fseek(hdd, location * HDD_BIT_OFFSET, SEEK_SET);
+	while (!feof(pgrm)) {
+		unsigned long opcode, reg, type, val;
+		if (fscanf(pgrm, "%lx %lx %lx %lx", &opcode, &reg, &type, &val) == EOF) {
+			return -1;
+		}
+		if (fprintf(hdd, "%08lx %08lx %08lx %08lx ", opcode, reg, type, val)
+				< 0) {
+			return -1;
+		}
+	}
+	return 0;
 }
 
 int emulator_start(emulator_t *emu) {
@@ -104,6 +133,8 @@ int emulator_start(emulator_t *emu) {
 		long *errReg = &emu->err_reg;
 
 		switch (opcode) {
+		case NOP_INSTR:
+			break;
 		case MOVL_INSTR:
 			movl(regPtr, value);
 			break;
@@ -118,6 +149,9 @@ int emulator_start(emulator_t *emu) {
 			break;
 		case IMUL_INSTR:
 			imul(regPtr, value);
+			break;
+		case IDIVL_INSTR:
+			idivl(regPtr, value);
 			break;
 		case ANDL_INSTR:
 			andl(regPtr, value);
@@ -164,14 +198,15 @@ int emulator_start(emulator_t *emu) {
 			intl(value, errReg, &isRunning, emu);
 			break;
 		case PUSHL_INSTR:
-			pushl(value, emu->specialMem, &emu->specialMemCounter, emu->stackSize,
-					errReg);
+			pushl(value, emu->specialMem, &emu->specialMemCounter,
+					emu->stackSize, errReg);
 			break;
 		case POPL_INSTR:
 			popl(regPtr, errReg, &emu->specialMem[0], &emu->specialMemCounter);
 			break;
 		default:
-			fprintf(stderr, "[Debug] CPU FAULT: 0x%x on emulator_start!\n", SEGMENTATION_FAULT);
+			fprintf(stderr, "[Debug] CPU FAULT: 0x%x on emulator_start!\n",
+			SEGMENTATION_FAULT);
 			emu->err_reg = SEGMENTATION_FAULT;
 			break;
 		}
@@ -182,8 +217,9 @@ int emulator_start(emulator_t *emu) {
 		printf("--------------\n");
 		printf("A, B, C, D: %ld %ld %ld %ld\n", emu->a_reg, emu->b_reg,
 				emu->c_reg, emu->d_reg);
-		printf("Error, Stack, Base, X Special Reg: %ld %ld %ld %ld\n", emu->err_reg,
-				emu->stack_reg, emu->base_reg, emu->x_special_reg);
+		printf("Error, Stack, Base, X Special Reg: %ld %ld %ld %ld\n",
+				emu->err_reg, emu->stack_reg, emu->base_reg,
+				emu->x_special_reg);
 		printf("Instruction Counter: %ld\n", emu->instructionCounter);
 		printf("Memory: ");
 		for (int i = 0; i <= emu->stack_reg; i++) {
@@ -203,15 +239,20 @@ int emulator_start(emulator_t *emu) {
 }
 
 static int programToMem(emulator_t *emu) {
-	while (!feof(emu->rom)) {
-		char opcodeStr[50], regStr[50], typeStr[50], valStr[50];
-		fscanf(emu->rom, "%49s %49s %49s %49s", opcodeStr, regStr, typeStr, valStr);
+	// Put the size of the code first (similar to ELF binary)
+	unsigned long operation, numLines, operand1, operand2;
+	if (fscanf(emu->hdd, "%lx %lx %lx %lx", &operation, &numLines, &operand1,
+			&operand2) == EOF) {
+		return -1;
+	}
 
-		long opcode, reg, type, val;
-		opcode = strtol(opcodeStr, NULL, 16);
-		reg = strtol(regStr, NULL, 16);
-		type = strtol(typeStr, NULL, 16);
-		val = strtol(valStr, NULL, 16);
+	long lineCounter = 1;
+	while (lineCounter <= numLines && !feof(emu->hdd)) {
+		unsigned long opcode, reg, type, val;
+		if (fscanf(emu->hdd, "%lx %lx %lx %lx", &opcode, &reg, &type,
+				&val) == EOF) {
+			return -1;
+		}
 
 		movl(&emu->a_reg, opcode);
 		movl(&emu->b_reg, reg);
@@ -219,10 +260,15 @@ static int programToMem(emulator_t *emu) {
 		movl(&emu->d_reg, val);
 
 		addl(&emu->stack_reg, 4);
-		stmovl(&emu->a_reg, emu->stack_reg - 4, emu->stack, emu->stackSize, &emu->err_reg);
-		stmovl(&emu->b_reg, emu->stack_reg - 3, emu->stack, emu->stackSize, &emu->err_reg);
-		stmovl(&emu->c_reg, emu->stack_reg - 2, emu->stack, emu->stackSize, &emu->err_reg);
-		stmovl(&emu->d_reg, emu->stack_reg - 1, emu->stack, emu->stackSize, &emu->err_reg);
+		stmovl(&emu->a_reg, emu->stack_reg - 4, emu->stack, emu->stackSize,
+				&emu->err_reg);
+		stmovl(&emu->b_reg, emu->stack_reg - 3, emu->stack, emu->stackSize,
+				&emu->err_reg);
+		stmovl(&emu->c_reg, emu->stack_reg - 2, emu->stack, emu->stackSize,
+				&emu->err_reg);
+		stmovl(&emu->d_reg, emu->stack_reg - 1, emu->stack, emu->stackSize,
+				&emu->err_reg);
+		lineCounter++;
 	}
 	return emu->err_reg;
 }
@@ -231,9 +277,11 @@ static void movl(long *reg, long value) {
 	*reg = value;
 }
 
-static void stmovl(long *reg, long value, long *stack, long stackSize, long *errReg) {
+static void stmovl(long *reg, long value, long *stack, long stackSize,
+		long *errReg) {
 	if (value >= stackSize) {
-		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n", STMOVL_INSTR);
+		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n",
+				STMOVL_INSTR);
 		*errReg = STMOVL_INSTR;
 		return;
 	}
@@ -250,6 +298,10 @@ static void subl(long *reg, long value) {
 
 static void imul(long *reg, long value) {
 	*reg *= value;
+}
+
+static void idivl(long *reg, long value) {
+	*reg /= value;
 }
 
 static void andl(long *reg, long value) {
@@ -339,7 +391,8 @@ static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu) {
 		*isRunning = false;
 		break;
 	default:
-		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n", INTL_INSTR);
+		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n",
+				INTL_INSTR);
 		*errReg = INTL_INSTR;
 		break;
 	}
@@ -348,7 +401,8 @@ static void intl(long value, long *errReg, bool *isRunning, emulator_t *emu) {
 static void pushl(long value, long *specialMemArr, long *specialMemCounter,
 		long ramSize, long *errReg) {
 	if (*specialMemCounter > ramSize / 2) {
-		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n", PUSHL_INSTR);
+		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n",
+				PUSHL_INSTR);
 		*errReg = PUSHL_INSTR;
 		return;
 	}
@@ -359,7 +413,8 @@ static void pushl(long value, long *specialMemArr, long *specialMemCounter,
 static void popl(long *regPtr, long *errReg, long *specialMemArr,
 		long *specialMemCounter) {
 	if (*specialMemCounter < 0) {
-		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n", POPL_INSTR);
+		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n",
+				POPL_INSTR);
 		*errReg = POPL_INSTR;
 		return;
 	}
@@ -386,7 +441,8 @@ static long* get_reg_ptr(long reg, emulator_t *emu) {
 	case BASE_REG_HEX:
 		return &emu->base_reg;
 	default:
-		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n", SEGMENTATION_FAULT);
+		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_reg_ptr()!\n",
+		SEGMENTATION_FAULT);
 		emu->err_reg = SEGMENTATION_FAULT;
 		return &emu->err_reg; // TODO: replace this with an alternative method because this yields funny results
 	}
@@ -417,7 +473,8 @@ static long get_value_on_type(long type, long val, emulator_t *emu) {
 	case BASE_REG_TYPE:
 		return emu->base_reg + val;
 	default:
-		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_value_on_type()!\n", SEGMENTATION_FAULT);
+		fprintf(stderr, "[Debug] CPU FAULT: 0x%x on get_value_on_type()!\n",
+		SEGMENTATION_FAULT);
 		emu->err_reg = SEGMENTATION_FAULT;
 		return emu->err_reg;
 	}

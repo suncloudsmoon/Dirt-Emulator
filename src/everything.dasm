@@ -1,8 +1,10 @@
+.exe 8
 movl a int 0
 movl b int 0
 
 addl b int 1
-subl a int 10
+addl a int 10
+nop nop nop 0
 cmpl b int 10
 jle nop int 3
 intl nop int 2

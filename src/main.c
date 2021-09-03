@@ -32,37 +32,50 @@
 #include "emulator.h"
 #include "assembler.h"
 
+static void createHdd(long hddSize, char *destFile);
+
 int main(int argc, char **argv) {
 	clock_t start, end;
 	start = clock();
 
+	// Create hdd for the first time...
+	createHdd(EIGHT_BIT_MAX_MEM, "src/everything.hdd");
+
 	// Start the assembler
-	FILE *input, *output;
+	FILE *input, *hddOutput;
 	input = fopen("src/everything.dasm", "r");
-	output = fopen("src/everything.hex", "w");
-	if (input == NULL || output == NULL) {
+	hddOutput = fopen("src/everything.hdd", "r+");
+	if (input == NULL || hddOutput == NULL) {
 		return -1;
 	}
-
-	assemble(input, output);
+	fseek(hddOutput, 0, SEEK_SET); // the program is accessed without any disk formatting, etc.
+	assemble(input, hddOutput);
 
 	fclose(input);
-	fclose(output);
+	fclose(hddOutput);
 
 	// Start the emulator
-	FILE *rom;
-	rom = fopen("src/everything.hex", "r");
-	if (rom == NULL) {
+	FILE *hdd;
+	hdd = fopen("src/everything.hdd", "r");
+	if (hdd == NULL) {
 		return -1;
 	}
 
-	emulator_t emu;
-	memset(&emu, 0, sizeof(emu));
-	emulator_init(EIGHT_BIT_MAX_MEM, rom, &emu);
+	emulator_t emu = { 0 };
+	emulator_init(EIGHT_BIT_MAX_MEM, hdd, &emu);
 	emulator_start(&emu);
 	emulator_free(&emu);
+
+	fclose(hdd);
 
 	end = clock();
 	printf("[main] Benchmarks: %f\n", (double) (end - start) / CLOCKS_PER_SEC);
 	return 0;
+}
+
+static void createHdd(long hddSize, char *destFile) {
+	FILE *hdd;
+	hdd = fopen(destFile, "w");
+	emulator_create_hdd(hddSize, hdd);
+	fclose(hdd);
 }

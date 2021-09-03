@@ -27,6 +27,6 @@
 #ifndef ASSEMBLER_H_
 #define ASSEMBLER_H_
 
-int assemble(FILE *input, FILE *output);
+int assemble(FILE *input, FILE *hdd);
 
 #endif /* ASSEMBLER_H_ */
